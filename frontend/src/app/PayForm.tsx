@@ -1,14 +1,50 @@
 "use client";
 
 import { useState } from "react";
+import { useEnsAddress } from "wagmi";
+import { normalize } from "viem/ens";
+import { useSolDomain } from "./useSolDomain";
 
 export function PayForm() {
   const [recipient, setRecipient] = useState("");
   const [amount, setAmount] = useState("");
 
+  const isEns = recipient.length > 4 && recipient.endsWith(".eth");
+  const isSol = recipient.length > 4 && recipient.endsWith(".sol");
+
+  // --- ENS resolution (.eth / .base.eth) ---
+  let normalizedName: string | undefined;
+  try {
+    normalizedName = isEns ? normalize(recipient) : undefined;
+  } catch {
+    normalizedName = undefined;
+  }
+
+  const {
+    data: ensAddress,
+    isLoading: ensLoading,
+    isError: ensFailed,
+  } = useEnsAddress({
+    name: normalizedName,
+    query: { enabled: !!normalizedName },
+  });
+
+  // --- SNS resolution (.sol) ---
+  const {
+    data: solAddress,
+    isLoading: solLoading,
+    isError: solFailed,
+  } = useSolDomain(isSol ? recipient : undefined);
+
+  // --- Unified resolution state ---
+  const isResolving = ensLoading || solLoading;
+  const resolvedAddress = ensAddress ?? solAddress ?? null;
+  const isResolveFailed = (isEns && ensFailed) || (isSol && solFailed);
+  const isNameInput = isEns || isSol;
+
   const handleSend = () => {
     // TODO: implement send logic
-    console.log("Send", { recipient, amount });
+    console.log("Send", { recipient, resolvedAddress, amount });
   };
 
   return (
@@ -43,6 +79,24 @@ export function PayForm() {
               placeholder="Search .eth, .sol, or .base.eth"
               className="h-12 w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 text-sm text-white placeholder-slate-500 shadow-sm outline-none transition focus:border-sky-400/60 focus:ring-2 focus:ring-sky-500/20"
             />
+            {isNameInput && (
+              <div className="mt-1.5 min-h-[1.25rem] px-1 text-xs">
+                {isResolving && (
+                  <span className="text-sky-400">Resolving {recipient}...</span>
+                )}
+                {!isResolving && resolvedAddress && (
+                  <span className="text-emerald-400">
+                    {resolvedAddress.slice(0, 6)}...{resolvedAddress.slice(-4)}
+                  </span>
+                )}
+                {!isResolving && isResolveFailed && (
+                  <span className="text-red-400">Could not resolve {recipient}</span>
+                )}
+                {!isResolving && !resolvedAddress && !isResolveFailed && (
+                  <span className="text-slate-500">No address found</span>
+                )}
+              </div>
+            )}
           </div>
 
           <div className="space-y-2">
@@ -76,7 +130,7 @@ export function PayForm() {
 
         <button
           onClick={handleSend}
-          disabled={!recipient || !amount}
+          disabled={!recipient || !amount || (isNameInput && !resolvedAddress)}
           className="mt-6 h-12 w-full rounded-2xl bg-gradient-to-r from-sky-500 via-blue-500 to-indigo-500 text-sm font-semibold text-white shadow-lg shadow-sky-500/20 transition hover:from-sky-400 hover:via-blue-400 hover:to-indigo-400 disabled:cursor-not-allowed disabled:opacity-40"
         >
           Send payment
