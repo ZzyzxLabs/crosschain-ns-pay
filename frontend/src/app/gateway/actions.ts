@@ -104,7 +104,7 @@ export async function fetchBalancesAction(
     const evmAccount = getEvmAccount();
     const solanaAccount = getSolanaAccount1();
 
-    const evmDomains = Object.values(EVM_CHAIN_CONFIG).map((c) => c.domain);
+    const evmDomains = Object.values(EVM_CHAIN_CONFIG).map((c) => c.domainId);
     const solDomains = [5]; // solanaDevnet
 
     const [evmBalances, solBalances] = await Promise.all([

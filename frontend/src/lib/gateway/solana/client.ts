@@ -27,7 +27,7 @@ function keypairFromEnv(envName: string): Keypair | null {
 }
 
 function buildSolanaAccount(name: string, keypair: Keypair): SolanaAccount {
-  const rpcUrl = getEnv(SOLANA_CONFIG.rpcEnv) ?? SOLANA_CONFIG.defaultRpcUrl;
+  const rpcUrl = SOLANA_CONFIG.defaultRpcUrl;
   const connection = new Connection(rpcUrl, "confirmed");
   const usdcMint = new PublicKey(SOLANA_CONFIG.usdcMint);
 
