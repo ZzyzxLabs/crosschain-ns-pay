@@ -1,4 +1,10 @@
-import { createPublicClient, createWalletClient, erc20Abi, getContract, http } from "viem";
+import {
+  createPublicClient,
+  createWalletClient,
+  erc20Abi,
+  getContract,
+  http,
+} from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { EVM_CHAIN_CONFIG, type EvmChainName } from "../config";
 import { getEnv } from "../utils/env";
@@ -14,7 +20,7 @@ export type EvmChainClient = {
   name: EvmChainName;
   domain: number;
   currency: string;
-  chain: typeof EVM_CHAIN_CONFIG[EvmChainName]["chain"];
+  chain: (typeof EVM_CHAIN_CONFIG)[EvmChainName]["chain"];
   publicClient: ReturnType<typeof createPublicClient>;
   walletClient: ReturnType<typeof createWalletClient>;
   usdc: EvmContract;
@@ -43,8 +49,7 @@ export function getEvmChain(name: EvmChainName): EvmChainClient {
   }
 
   const config = EVM_CHAIN_CONFIG[name];
-  const rpcOverride = getEnv(config.rpcEnv);
-  const rpcUrl = rpcOverride ?? config.defaultRpcUrl ?? config.chain.rpcUrls.default.http[0];
+  const rpcUrl = config.chain.rpcUrls.default.http[0];
 
   const account = getEvmAccount();
   const transport = http(rpcUrl);
@@ -78,7 +83,7 @@ export function getEvmChain(name: EvmChainName): EvmChainClient {
 
   const chainClient: EvmChainClient = {
     name,
-    domain: config.domain,
+    domain: config.domainId,
     currency: config.currency,
     chain: config.chain,
     publicClient,

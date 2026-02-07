@@ -31,18 +31,16 @@ export class GatewayClient {
     return this.get("/info");
   }
 
-  async balances(
-    token: string,
-    depositor: string,
-    domains?: number[],
-  ): Promise<GatewayBalance[]> {
-    const domainValues =
-      domains && domains.length > 0
-        ? domains
-        : (Object.values(GATEWAY_DOMAINS) as number[]);
+  /**
+   * Fetch USDC balances for a depositor on the given domains.
+   * Use EVM domains (0, 1, 6, 26) with an EVM address (0x...) and
+   * domain 5 (Solana) only with a Solana address (base58).
+   */
+  async balances(depositor: string, domains: number[]): Promise<GatewayBalance[]> {
+    if (domains.length === 0) return [];
     const body = {
-      token,
-      sources: domainValues.map((domain) => ({ domain, depositor })),
+      token: "USDC",
+      sources: domains.map((domain) => ({ domain, depositor })),
     };
     const data = await this.post("/balances", body);
     return (data as { balances: GatewayBalance[] }).balances;
