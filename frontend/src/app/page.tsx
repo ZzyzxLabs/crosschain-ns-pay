@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { Header } from "./Header";
 import { PayForm } from "./PayForm";
 
@@ -22,6 +23,17 @@ export default function Home() {
                 Resolve ENS, SNS, and Base names into destinations and send
                 USDC instantly with a clean, modern flow.
               </p>
+              <div className="mt-6 flex flex-wrap gap-3">
+                <Link
+                  href="/gateway"
+                  className="rounded-full border border-sky-400/50 bg-sky-500/20 px-5 py-2 text-sm font-medium text-sky-100 transition hover:bg-sky-500/30"
+                >
+                  Open Gateway Console
+                </Link>
+                <span className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-slate-300">
+                  Devnet ready
+                </span>
+              </div>
               <div className="mt-6 flex flex-wrap gap-3 text-sm text-slate-300">
                 <span className="rounded-full border border-white/10 bg-white/5 px-4 py-2">
                   ENS + SNS ready
