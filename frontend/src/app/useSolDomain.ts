@@ -1,10 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Connection } from "@solana/web3.js";
-import { getDomainKey, NameRegistryState } from "@bonfida/spl-name-service";
 
-const SOLANA_RPC = "https://api.mainnet-beta.solana.com";
+const BONFIDA_API = "https://sns-sdk-proxy.bonfida.workers.dev";
 
 export function useSolDomain(name: string | undefined) {
   const [data, setData] = useState<string | null>(null);
@@ -25,29 +23,40 @@ export function useSolDomain(name: string | undefined) {
     setIsError(false);
     setData(null);
 
+    const controller = new AbortController();
+
     (async () => {
       try {
-        const connection = new Connection(SOLANA_RPC);
-        // Strip the .sol suffix — getDomainKey expects just the name part
+        // Strip .sol suffix for the API
         const domain = name.endsWith(".sol") ? name.slice(0, -4) : name;
-        const { pubkey } = await getDomainKey(domain);
-        const { registry } = await NameRegistryState.retrieve(
-          connection,
-          pubkey
-        );
-        const owner = registry.owner.toBase58();
+        const res = await fetch(`${BONFIDA_API}/resolve/${domain}`, {
+          signal: controller.signal,
+        });
+
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+        const json = await res.json();
+        // The API returns { s: "ok", result: "<pubkey>" }
+        const owner = json?.result;
+
         if (id === abortRef.current) {
-          setData(owner);
+          if (owner) {
+            setData(owner);
+          } else {
+            setIsError(true);
+          }
           setIsLoading(false);
         }
-      } catch {
-        if (id === abortRef.current) {
+      } catch (err) {
+        if (id === abortRef.current && !controller.signal.aborted) {
           setData(null);
           setIsError(true);
           setIsLoading(false);
         }
       }
     })();
+
+    return () => controller.abort();
   }, [name]);
 
   return { data, isLoading, isError };

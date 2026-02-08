@@ -1,11 +1,11 @@
 "use client";
 
 import { WagmiProvider, createConfig, http } from "wagmi";
-import { arcTestnet, avalancheFuji, baseSepolia, sepolia } from "wagmi/chains";
+import { avalancheFuji, baseSepolia, mainnet, sepolia } from "wagmi/chains";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ConnectKitProvider, getDefaultConfig } from "connectkit";
 
-const gatewayChains = [sepolia, baseSepolia, avalancheFuji, arcTestnet];
+const gatewayChains = [mainnet, sepolia, baseSepolia, avalancheFuji] as const;
 
 const config = createConfig(
   getDefaultConfig({
