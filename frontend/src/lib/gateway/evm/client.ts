@@ -9,6 +9,7 @@ import { privateKeyToAccount } from "viem/accounts";
 import { EVM_CHAIN_CONFIG, type EvmChainName } from "../config";
 import { getEnv } from "../utils/env";
 import { gatewayMinterAbi, gatewayWalletAbi } from "./contracts";
+import { EVM_GATEWAY_WALLET, EVM_GATEWAY_MINTER } from "../config";
 
 export type EvmContract = {
   address: `0x${string}`;
@@ -71,12 +72,12 @@ export function getEvmChain(name: EvmChainName): EvmChainClient {
     client: contractClient,
   }) as unknown as EvmContract;
   const gatewayWallet = getContract({
-    address: config.gatewayWallet,
+    address: EVM_GATEWAY_WALLET,
     abi: gatewayWalletAbi,
     client: contractClient,
   }) as unknown as EvmContract;
   const gatewayMinter = getContract({
-    address: config.gatewayMinter,
+    address: EVM_GATEWAY_MINTER,
     abi: gatewayMinterAbi,
     client: contractClient,
   }) as unknown as EvmContract;

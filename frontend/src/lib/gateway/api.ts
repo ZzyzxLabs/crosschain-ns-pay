@@ -1,12 +1,9 @@
 import { getEnv } from "./utils/env";
+import { EVM_DOMAIN_IDS, SOLANA_DOMAIN_ID } from "./config";
 
-export const GATEWAY_DOMAINS = {
-  sepolia: 0,
-  avalancheFuji: 1,
-  solanaDevnet: 5,
-  baseSepolia: 6,
-  arcTestnet: 26,
-} as const;
+function isEvmAddress(depositor: string): boolean {
+  return /^0x[0-9a-fA-F]{40}$/.test(depositor.trim());
+}
 
 export const GATEWAY_CHAINS: Record<number, string> = {
   0: "Sepolia",
@@ -32,12 +29,13 @@ export class GatewayClient {
   }
 
   /**
-   * Fetch USDC balances for a depositor on the given domains.
-   * Use EVM domains (0, 1, 6, 26) with an EVM address (0x...) and
-   * domain 5 (Solana) only with a Solana address (base58).
+   * Fetch USDC balances for a depositor.
+   * If address is EVM (0x...), requests all EVM domains. If Solana (base58), requests domain 5 only.
    */
-  async balances(depositor: string, domains: number[]): Promise<GatewayBalance[]> {
-    if (domains.length === 0) return [];
+  async balances(depositor: string): Promise<GatewayBalance[]> {
+    const domains = isEvmAddress(depositor)
+      ? EVM_DOMAIN_IDS
+      : [SOLANA_DOMAIN_ID];
     const body = {
       token: "USDC",
       sources: domains.map((domain) => ({ domain, depositor })),

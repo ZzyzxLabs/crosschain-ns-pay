@@ -1,12 +1,11 @@
 import type { Chain } from "viem/chains";
 import type { Address } from "viem";
 import { arcTestnet, avalancheFuji, baseSepolia, sepolia } from "viem/chains";
-import { GATEWAY_DOMAINS } from "./api";
 
 /** Shared Gateway testnet contract addresses (same across EVM testnets). */
-const EVM_GATEWAY_WALLET: Address =
+export const EVM_GATEWAY_WALLET: Address =
   "0x0077777d7EBA4688BDeF3E311b846F25870A19B9";
-const EVM_GATEWAY_MINTER: Address =
+export const EVM_GATEWAY_MINTER: Address =
   "0x0022222ABE238Cc2C7Bb1f21003F0a260052475B";
 
 export type EvmChainConfig = {
@@ -47,6 +46,11 @@ export const EVM_CHAIN_CONFIG = {
   },
 } as const satisfies Record<string, EvmChainConfig>;
 
+export const EVM_DOMAIN_IDS = Object.values(EVM_CHAIN_CONFIG).map(
+  (c) => c.domainId,
+);
+export const SOLANA_DOMAIN_ID = 5;
+
 export type EvmChainName = keyof typeof EVM_CHAIN_CONFIG;
 
 /** Supported EVM chains in display order (derived from config). */
@@ -67,7 +71,7 @@ export type TransferToChainName =
 
 /** Solana devnet config (single supported Solana chain). */
 export const SOLANA_CONFIG = {
-  domain: GATEWAY_DOMAINS.solanaDevnet,
+  domainId: 5,
   defaultRpcUrl: "https://api.devnet.solana.com",
   usdcMint: "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU",
   gatewayWalletProgram: "GATEwdfmYNELfp5wDmmR6noSr2vHnAfBPMm2PvCzX5vu",

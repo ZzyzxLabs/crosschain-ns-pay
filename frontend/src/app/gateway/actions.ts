@@ -23,13 +23,10 @@ import {
   getSolanaAccount1,
   getSolanaAccount2,
   parseUsdcToBigInt,
-  SOLANA_CONFIG,
   SOLANA_ZERO_ADDRESS,
   transformBurnIntent,
   type EvmChainName,
 } from "@/lib/gateway";
-
-const EVM_DOMAIN_IDS = Object.values(EVM_CHAIN_CONFIG).map((c) => c.domainId);
 
 export type ActionResult<T = undefined> = {
   ok: boolean;
@@ -108,8 +105,8 @@ export async function fetchBalancesAction(
     const solanaAccount = getSolanaAccount1();
 
     const [evmBalances, solBalances] = await Promise.all([
-      gatewayClient.balances(evmAccount.address, EVM_DOMAIN_IDS),
-      gatewayClient.balances(solanaAccount.address, [SOLANA_CONFIG.domain]),
+      gatewayClient.balances(evmAccount.address),
+      gatewayClient.balances(solanaAccount.address),
     ]);
 
     const evmEntries = formatBalances(evmBalances);
@@ -227,7 +224,7 @@ export async function transferFromEvmAction(
     const isDestinationSolana = toName === "solanaDevnet";
     const toChain = isDestinationSolana ? null : resolveEvmChain(toName);
 
-    const balances = await gatewayClient.balances(evmAccount.address, EVM_DOMAIN_IDS);
+    const balances = await gatewayClient.balances(evmAccount.address);
     const sourceBalance = balances.find((b) => b.domain === fromChain.domain);
     const available = sourceBalance
       ? parseUsdcToBigInt(sourceBalance.balance)
@@ -349,10 +346,10 @@ export async function transferFromSolAction(
     const isDestinationSolana = toName === "solanaDevnet";
     const evmDestination = isDestinationSolana ? null : resolveEvmChain(toName);
 
-    const balances = await gatewayClient.balances(solanaSender.address, [
-      SOLANA_CONFIG.domain,
-    ]);
-    const sourceBalance = balances.find((b) => b.domain === solanaSender.domain);
+    const balances = await gatewayClient.balances(solanaSender.address);
+    const sourceBalance = balances.find(
+      (b) => b.domain === solanaSender.domain,
+    );
     const available = sourceBalance
       ? parseUsdcToBigInt(sourceBalance.balance)
       : 0n;
