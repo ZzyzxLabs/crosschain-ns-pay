@@ -15,17 +15,21 @@ import { zeroAddress } from "viem";
 import {
   burnIntent,
   burnIntentTypedData,
+  burnIntentTypedDataForEvmToSolana,
+  createBurnIntentEvmToSolana,
   EVM_CHAIN_CONFIG,
   GatewayClient,
   GATEWAY_CHAINS,
   getEvmAccount,
   getEvmChain,
-  getSolanaAccount1,
+  getSolanaAccount,
   getSolanaAccount2,
   parseUsdcToBigInt,
   SOLANA_ZERO_ADDRESS,
   transformBurnIntent,
+  transformBurnIntentForApiEvmToSolana,
   type EvmChainName,
+  SOLANA_CONFIG,
 } from "@/lib/gateway";
 
 export type ActionResult<T = undefined> = {
@@ -102,7 +106,7 @@ export async function fetchBalancesAction(
 ): Promise<ActionResult<BalancesData>> {
   try {
     const evmAccount = getEvmAccount();
-    const solanaAccount = getSolanaAccount1();
+    const solanaAccount = getSolanaAccount();
 
     const [evmBalances, solBalances] = await Promise.all([
       gatewayClient.balances(evmAccount.address),
@@ -175,7 +179,7 @@ export async function depositFromSolAction(
     const amountStr = getFormString(formData, "amount");
     const amount = parseUsdcToBigInt(amountStr);
 
-    const solana = getSolanaAccount1();
+    const solana = getSolanaAccount();
 
     const userAta = getAssociatedTokenAddressSync(
       solana.usdc.publicKey,
@@ -226,9 +230,19 @@ export async function transferFromEvmAction(
 
     const balances = await gatewayClient.balances(evmAccount.address);
     const sourceBalance = balances.find((b) => b.domain === fromChain.domain);
-    const available = sourceBalance
-      ? parseUsdcToBigInt(sourceBalance.balance)
-      : 0n;
+    const balanceStr =
+      sourceBalance != null && typeof sourceBalance.balance === "string"
+        ? String(sourceBalance.balance).trim()
+        : "";
+    let available = 0n;
+    if (balanceStr && /^\d+(\.\d+)?$/.test(balanceStr)) {
+      try {
+        const parsed = parseUsdcToBigInt(balanceStr);
+        if (parsed > 0n) available = parsed;
+      } catch {
+        // leave 0n
+      }
+    }
     if (available < amount) {
       throw new Error(
         "Insufficient Gateway balance on source chain. Deposit first.",
@@ -236,82 +250,76 @@ export async function transferFromEvmAction(
     }
 
     let destinationRecipient: string;
-    let solanaFeePayer = null as ReturnType<typeof getSolanaAccount1> | null;
-
+    const solanaRecipient = getSolanaAccount();
     if (isDestinationSolana) {
-      solanaFeePayer = getSolanaAccount1();
-      const solanaRecipient = getSolanaAccount2() ?? solanaFeePayer;
       const walletAddress = recipientArg ?? solanaRecipient.address;
       const solanaRecipientPublicKey = new PublicKey(walletAddress);
-      const ata = getAssociatedTokenAddressSync(
-        solanaFeePayer.usdc.publicKey,
+      const usdcMint = new PublicKey(SOLANA_CONFIG.usdcMint);
+      const recipientAta = getAssociatedTokenAddressSync(
+        usdcMint,
         solanaRecipientPublicKey,
       );
-      destinationRecipient = ata.toBase58();
+      destinationRecipient = recipientAta.toBase58();
 
-      const ataIx = createAssociatedTokenAccountIdempotentInstruction(
-        solanaFeePayer.publicKey,
-        ata,
+      const createAtaIx = createAssociatedTokenAccountIdempotentInstruction(
         solanaRecipientPublicKey,
-        solanaFeePayer.usdc.publicKey,
+        recipientAta,
+        solanaRecipientPublicKey,
+        usdcMint,
       );
-      const ataTx = new Transaction().add(ataIx);
-      await sendAndConfirmTransaction(solanaFeePayer.connection, ataTx, [
-        solanaFeePayer.keypair,
+      const tx = new Transaction().add(createAtaIx);
+      await sendAndConfirmTransaction(solanaRecipient.connection, tx, [
+        solanaRecipient.keypair,
       ]);
     } else {
       destinationRecipient = recipientArg ?? evmAccount.address;
     }
 
-    const intent = burnIntent({
-      account: { address: evmAccount.address },
-      from: {
-        domain: fromChain.domain,
-        gatewayWallet: { address: fromChain.gatewayWallet.address },
-        gatewayMinter: { address: fromChain.gatewayMinter.address },
-        usdc: { address: fromChain.usdc.address },
-      },
-      to: {
-        domain: isDestinationSolana ? solanaFeePayer!.domain : toChain!.domain,
-        gatewayWallet: {
-          address: isDestinationSolana
-            ? solanaFeePayer!.gatewayWallet.gatewayWalletAddress
-            : toChain!.gatewayWallet.address,
-        },
-        gatewayMinter: {
-          address: isDestinationSolana
-            ? solanaFeePayer!.gatewayMinter.gatewayMinterAddress
-            : toChain!.gatewayMinter.address,
-        },
-        usdc: {
-          address: isDestinationSolana
-            ? solanaFeePayer!.usdc.address
-            : toChain!.usdc.address,
-        },
-      },
-      amount: amountStr,
-      recipient: destinationRecipient,
-      destinationCaller: isDestinationSolana
-        ? SOLANA_ZERO_ADDRESS
-        : zeroAddress,
-    });
+    const intent = isDestinationSolana
+      ? createBurnIntentEvmToSolana({
+          sourceChain: fromName as EvmChainName,
+          depositorAddress: evmAccount.address,
+          recipientAddress: destinationRecipient,
+          amount: amountStr,
+        })
+      : burnIntent({
+          account: { address: evmAccount.address },
+          from: {
+            domain: fromChain.domain,
+            gatewayWallet: { address: fromChain.gatewayWallet.address },
+            gatewayMinter: { address: fromChain.gatewayMinter.address },
+            usdc: { address: fromChain.usdc.address },
+          },
+          to: {
+            domain: toChain!.domain,
+            gatewayWallet: { address: toChain!.gatewayWallet.address },
+            gatewayMinter: { address: toChain!.gatewayMinter.address },
+            usdc: { address: toChain!.usdc.address },
+          },
+          amount: amountStr,
+          recipient: destinationRecipient,
+          destinationCaller: zeroAddress,
+        });
 
-    const signature = await evmAccount.signTypedData(
-      burnIntentTypedData(intent, false, isDestinationSolana) as any,
-    );
+    const typedData = isDestinationSolana
+      ? burnIntentTypedDataForEvmToSolana(intent)
+      : burnIntentTypedData(intent, false, false);
+    const signature = await evmAccount.signTypedData(typedData as any);
 
+    const transferPayload = isDestinationSolana
+      ? transformBurnIntentForApiEvmToSolana(intent)
+      : intent;
     const response = await gatewayClient.transfer([
-      { burnIntent: intent, signature },
+      { burnIntent: transferPayload, signature },
     ]);
 
     if (isDestinationSolana) {
-      const solana = solanaFeePayer!;
-      const mintTx = await solana.gatewayMinter.gatewayMint({
+      const mintTx = await solanaRecipient.gatewayMinter.gatewayMint({
         attestation: response.attestation,
         signature: response.signature,
-        usdcToken: solana.usdc.publicKey,
+        usdcToken: solanaRecipient.usdc.publicKey,
       });
-      await solana.gatewayMinter.waitForConfirmation(mintTx);
+      await solanaRecipient.gatewayMinter.waitForConfirmation(mintTx);
       return { ok: true, message: "Minted on Solana.", data: { mintTx } };
     }
 
@@ -342,7 +350,7 @@ export async function transferFromSolAction(
     const amount = parseUsdcToBigInt(amountStr);
     const recipientArg = getOptionalFormString(formData, "recipient");
 
-    const solanaSender = getSolanaAccount1();
+    const solanaSender = getSolanaAccount();
     const isDestinationSolana = toName === "solanaDevnet";
     const evmDestination = isDestinationSolana ? null : resolveEvmChain(toName);
 
@@ -350,9 +358,19 @@ export async function transferFromSolAction(
     const sourceBalance = balances.find(
       (b) => b.domain === solanaSender.domain,
     );
-    const available = sourceBalance
-      ? parseUsdcToBigInt(sourceBalance.balance)
-      : 0n;
+    const balanceStr =
+      sourceBalance != null && typeof sourceBalance.balance === "string"
+        ? String(sourceBalance.balance).trim()
+        : "";
+    let available = 0n;
+    if (balanceStr && /^\d+(\.\d+)?$/.test(balanceStr)) {
+      try {
+        const parsed = parseUsdcToBigInt(balanceStr);
+        if (parsed > 0n) available = parsed;
+      } catch {
+        // leave 0n
+      }
+    }
     if (available < amount) {
       throw new Error("Insufficient Gateway balance on Solana. Deposit first.");
     }
@@ -360,23 +378,23 @@ export async function transferFromSolAction(
     let destinationRecipient: string;
 
     if (isDestinationSolana) {
-      const solanaRecipient = getSolanaAccount2() ?? solanaSender;
+      const solanaRecipient = getSolanaAccount() ?? solanaSender;
       const walletAddress = recipientArg ?? solanaRecipient.address;
       const destinationWallet = new PublicKey(walletAddress);
-      const ata = getAssociatedTokenAddressSync(
+      const recipientAta = getAssociatedTokenAddressSync(
         solanaSender.usdc.publicKey,
         destinationWallet,
       );
-      destinationRecipient = ata.toBase58();
+      destinationRecipient = recipientAta.toBase58();
 
-      const ataIx = createAssociatedTokenAccountIdempotentInstruction(
+      const createAtaIx = createAssociatedTokenAccountIdempotentInstruction(
         solanaSender.publicKey,
-        ata,
+        recipientAta,
         destinationWallet,
         solanaSender.usdc.publicKey,
       );
-      const ataTx = new Transaction().add(ataIx);
-      await sendAndConfirmTransaction(solanaSender.connection, ataTx, [
+      const tx = new Transaction().add(createAtaIx);
+      await sendAndConfirmTransaction(solanaSender.connection, tx, [
         solanaSender.keypair,
       ]);
     } else {

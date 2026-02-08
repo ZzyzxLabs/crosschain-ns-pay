@@ -1,6 +1,45 @@
 import { getEnv } from "./utils/env";
 import { EVM_DOMAIN_IDS, SOLANA_DOMAIN_ID } from "./config";
 
+/** Normalize a burn intent for Gateway API: numbers for version/domains, strings for bigint/hex. */
+function normalizeBurnIntentForApi(burnIntent: unknown): unknown {
+  if (burnIntent == null || typeof burnIntent !== "object") return burnIntent;
+  const raw = burnIntent as Record<string, unknown>;
+  const spec = raw.spec as Record<string, unknown> | undefined;
+  if (!spec || typeof spec !== "object") return burnIntent;
+
+  return {
+    maxBlockHeight:
+      typeof raw.maxBlockHeight === "bigint"
+        ? String(raw.maxBlockHeight)
+        : raw.maxBlockHeight,
+    maxFee: typeof raw.maxFee === "bigint" ? String(raw.maxFee) : raw.maxFee,
+    spec: {
+      version:
+        typeof spec.version === "bigint" ? Number(spec.version) : spec.version,
+      sourceDomain:
+        typeof spec.sourceDomain === "bigint"
+          ? Number(spec.sourceDomain)
+          : spec.sourceDomain,
+      destinationDomain:
+        typeof spec.destinationDomain === "bigint"
+          ? Number(spec.destinationDomain)
+          : spec.destinationDomain,
+      sourceContract: spec.sourceContract,
+      destinationContract: spec.destinationContract,
+      sourceToken: spec.sourceToken,
+      destinationToken: spec.destinationToken,
+      sourceDepositor: spec.sourceDepositor,
+      destinationRecipient: spec.destinationRecipient,
+      sourceSigner: spec.sourceSigner,
+      destinationCaller: spec.destinationCaller,
+      value: typeof spec.value === "bigint" ? String(spec.value) : spec.value,
+      salt: spec.salt,
+      hookData: spec.hookData,
+    },
+  };
+}
+
 function isEvmAddress(depositor: string): boolean {
   return /^0x[0-9a-fA-F]{40}$/.test(depositor.trim());
 }
@@ -50,7 +89,29 @@ export class GatewayClient {
     attestation: string;
     signature: string;
   }> {
-    return this.post("/transfer", { burnIntentSet: request });
+    const normalized = request.map((item) => ({
+      burnIntent: normalizeBurnIntentForApi(item.burnIntent),
+      signature: item.signature,
+    }));
+    const body = JSON.stringify(normalized);
+    const response = await fetch(`${GatewayClient.BASE_URL}/transfer`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body,
+    });
+    if (!response.ok) {
+      const text = await response.text();
+      console.error("Gateway API error status:", response.status);
+      console.error(text);
+      throw new Error(
+        `Gateway API transfer failed: ${response.status} ${text}`,
+      );
+    }
+    const json = (await response.json()) as {
+      attestation: string;
+      signature: string;
+    };
+    return { attestation: json.attestation, signature: json.signature };
   }
 
   private async get(path: string): Promise<unknown> {

@@ -7,6 +7,10 @@ export const EVM_GATEWAY_WALLET: Address =
   "0x0077777d7EBA4688BDeF3E311b846F25870A19B9";
 export const EVM_GATEWAY_MINTER: Address =
   "0x0022222ABE238Cc2C7Bb1f21003F0a260052475B";
+export const SOLANA_GATEWAY_WALLET =
+  "GATEwdfmYNELfp5wDmmR6noSr2vHnAfBPMm2PvCzX5vu";
+export const SOLANA_GATEWAY_MINTER =
+  "GATEmKK2ECL1brEngQZWCgMWPbvrEYqsV6u29dAaHavr";
 
 export type EvmChainConfig = {
   chain: Chain;

@@ -82,7 +82,7 @@ export class SolanaWalletClient {
 
     return (this.program.methods
       .deposit(params.amount) as any)
-      .accountsPartial({
+      .accounts({
         payer: this.account.publicKey,
         owner: this.account.publicKey,
         gatewayWallet: gatewayWalletPda,

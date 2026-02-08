@@ -33,7 +33,7 @@ function buildSolanaAccount(name: string, keypair: Keypair): SolanaAccount {
 
   return {
     name,
-    domain: SOLANA_CONFIG.domain,
+    domain: SOLANA_CONFIG.domainId,
     currency: SOLANA_CONFIG.currency,
     connection,
     keypair,
@@ -53,12 +53,12 @@ function buildSolanaAccount(name: string, keypair: Keypair): SolanaAccount {
   };
 }
 
-export function getSolanaAccount1(): SolanaAccount {
+export function getSolanaAccount(): SolanaAccount {
   const keypair = keypairFromEnv("SOLANA_PRIVATE_KEYPAIR");
   if (!keypair) {
     throw new Error("Missing SOLANA_PRIVATE_KEYPAIR in environment");
   }
-  return buildSolanaAccount("solanaAccount1", keypair);
+  return buildSolanaAccount("solanaAccount", keypair);
 }
 
 export function getSolanaAccount2(): SolanaAccount | null {

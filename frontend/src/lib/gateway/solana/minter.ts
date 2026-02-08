@@ -30,28 +30,40 @@ export class SolanaMinterClient {
     );
   }
 
-  findCustodyPda(tokenMint: PublicKey) {
+  findCustodyPda(tokenMint: PublicKey): PublicKey {
     const gatewayMinterProgramId = new PublicKey(this.gatewayMinterAddress);
-    return PublicKey.findProgramAddressSync(
+    const [pda] = PublicKey.findProgramAddressSync(
       [anchor.utils.bytes.utf8.encode("gateway_minter_custody"), tokenMint.toBuffer()],
       gatewayMinterProgramId
     );
+    return pda;
   }
 
-  findTransferSpecHashPda(transferSpecHash: Buffer) {
+  findTransferSpecHashPda(transferSpecHash: Buffer): PublicKey {
     const gatewayMinterProgramId = new PublicKey(this.gatewayMinterAddress);
-    return PublicKey.findProgramAddressSync(
+    const [pda] = PublicKey.findProgramAddressSync(
       [anchor.utils.bytes.utf8.encode("used_transfer_spec_hash"), transferSpecHash],
       gatewayMinterProgramId
     );
+    return pda;
   }
 
-  findGatewayMinterPda() {
+  findGatewayMinterPda(): PublicKey {
     const gatewayMinterProgramId = new PublicKey(this.gatewayMinterAddress);
-    return PublicKey.findProgramAddressSync(
+    const [pda] = PublicKey.findProgramAddressSync(
       [anchor.utils.bytes.utf8.encode("gateway_minter")],
       gatewayMinterProgramId
     );
+    return pda;
+  }
+
+  findEventAuthorityPda(): PublicKey {
+    const programId = new PublicKey(this.gatewayMinterAddress);
+    const [pda] = PublicKey.findProgramAddressSync(
+      [Buffer.from("__event_authority")],
+      programId
+    );
+    return pda;
   }
 
   async gatewayMint(params: {
@@ -64,21 +76,25 @@ export class SolanaMinterClient {
     const transferSpecHash = attestationItem.transferSpecHash;
     const destinationRecipient = new PublicKey(attestationItem.destinationRecipient.toBase58());
 
-    const [gatewayMinterPda] = this.findGatewayMinterPda();
-    const [custodyPda] = this.findCustodyPda(params.usdcToken);
-    const [transferSpecHashPda] = this.findTransferSpecHashPda(transferSpecHash);
+    const gatewayMinterPda = this.findGatewayMinterPda();
+    const custodyPda = this.findCustodyPda(params.usdcToken);
+    const transferSpecHashPda = this.findTransferSpecHashPda(transferSpecHash);
 
     const attestationBytes = Buffer.from(params.attestation.slice(2), "hex");
     const signatureBytes = Buffer.from(params.signature.slice(2), "hex");
+    const eventAuthority = this.findEventAuthorityPda();
+    const programId = new PublicKey(this.gatewayMinterAddress);
 
     return (this.program.methods
       .gatewayMint({ attestation: attestationBytes, signature: signatureBytes }) as any)
-      .accountsPartial({
+      .accounts({
         payer: this.account.publicKey,
         gatewayMinter: gatewayMinterPda,
         destinationCaller: this.account.publicKey,
         systemProgram: SystemProgram.programId,
         tokenProgram: TOKEN_PROGRAM_ID,
+        eventAuthority,
+        program: programId,
       })
       .remainingAccounts([
         { pubkey: custodyPda, isSigner: false, isWritable: true },
